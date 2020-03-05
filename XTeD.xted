@@ -1,0 +1,245 @@
+\title{XTeD: An eXtensible, TeX-like document syntax}
+\author{\mrp}
+
+
+\section{A sense of XTeD}
+
+It is concise and eXtensible; usable by both humans and machines; it looks like TeX and feels like XML. XTeD is a plain text syntax designed to markup natural, written language but possibly amenable to other means. The human experience with the plain text source is of high priority. The plain text source is easy to read and write by humans who might also edit in tandem with machines to help in the process. This, machines can do, since XTeD is mostly unambiguous: There is almost always one way to write something and there is always a preferred way of writing something. This way, the machine will have an easier time keeping the plain text source just how you wrote it. It is also quite simple, at least for now, to parse XTeD.
+
+
+\section{XTeD by example}
+
+XTeD is very reminicent of TeX and LaTeX. In fact, the following hello world example is both valid XTeD and TeX. Of course, my secret here is that I delibrately crafted this to work in both systems so don't be fooled, there are differences.
+
+\xted{
+	Hello \TeX{} world!
+}
+
+In TeX, this will print "Hello TeX world" to a sheet of paper. In XTeD it means nothing until we choose an interpretation for it. It has the same meaning as the XML \xml{Hello <TeX></TeX> world}. Here is some more XTeD to get a feel for it.
+
+\xted{
+	\title{XTeD by example}
+
+	In an XTeD document we can write natural, written language quite freely as plain text. We can also use elements such as \myelement{}. An element has a type "myelement" and possibly a body contained in the nesting brackets {}. \myelement{The body of an element may contain text and other \myelement{}s}.
+
+	\div{A \brief element is one without a body. A \brief;, element may always be ended with a semi-colon but often this isn't necessary. A \brief element may be terminated by \whitespace or \another\element;, or a \body{\closure}. The syntax "\;" represents a brief, nameless element.}
+
+	{Nameless elements simply start without a preceeding escape character "\". This makes writing things like \frac{{a}{b}} easier.}
+
+	The character escapes "\\", "\{" and "\}" allow writing characters in plain text which couldn't be otherwise. Although don't worry about escaping XTeD syntax which is intended to be interpretted as plain text. The plain text XTeD source is highly unambiguous and easily recoverable after parsing.
+
+	A whitespace escape is where an escape character is followed whitespace such as "\    ". The whitespace escape consumes all whitespace that proceeds it and remembers it. It is to be thought of much like an element \whitespace{    } and its meaning is up for interpretation.
+}
+
+Often there are two ways of writing a brief element: With or without the terminal semi-colon. If possible its preferred to omit the semi-colon and machines interacting with the source are permissed to remove it at any time.
+
+For better or for worse, every possible string is a valid XTeD document and so we don't need to worry about syntax errors. An editor with syntax highlighting should help a writer make sure what they are writting is really what they mean. This leads to the interesting feature that an unmatched body closure \} will mark the end of the file and all text beyond that will not be interpretted. Perhaps this could be used to store auxillary, unstructured information or perhaps it may be ignored.
+
+
+\section{Document interpretations}
+
+XTeD syntax forms a tree structure of named nodes and plain text leaf nodes. We'll call this the AST (abstract syntax tree) of an XTeD document. To describe different concepts, the AST needs to be given meaning and grammar: It needs an interpretation. For example, we could specify an interpretation which uses the element types "recipe", "ingredients", "method", "step" and "notes" to express a cooking recipe. A processor which understands our recipe interpretation might then be able to produce a beautifully typeset web page out of our recipe and query our pantry inventory system to check if we have the necessary ingredients. Another interpretation might be a HTML shorthand which makes writting HTML less painful. To make it clear though, an interpretation can be more than just giving meaning to element types.
+
+It is completely within the right of an interpretation to do what ever it wants with an XTeD AST. This may include defining its own sub-syntax on element types or plain text. The element \funccall(21) is a brief element with the type "funccall(21)". An interpretation may further parse this as calling the function "funccall" with parameter "21". Similarly, \csv{1, 2, 3, 4, 5} may result in the body text being parsed as CSV syntax, if the interpretation says so. Therefore, we must be familiar with the interpretation that we're writing for and any rules that it may have.
+
+
+\section{XTeD syntax}
+
+The following production rules define most of the XTeD syntax and are adequate for parsing XTeD from start to finish.
+
+\syntax{
+	Document -> Body [NestClose UnparsedTail]
+	Body -> (Element | WsEscape | Text)*
+
+	Element -> NormalElement | NamelessElement | briefElement | briefNamelessElement
+	NormalElement -> EscChar Type NestOpen Body [NestClose]
+	NamelessElement -> NestOpen Body [NestClose]
+	briefElement -> EscChar Type [briefTerm]
+	briefNamelessElement -> EscChar briefTerm
+	Type -> (! (EscChar | NestOpen | NestClose | briefTerm | Whitespace) )+
+
+	WsEscape -> EscChar WhiteSpace+
+
+	Text -> (PlainText | CharEsc)+
+	PlainText -> (!SpecialChar)+
+	CharEsc -> EscChar SpecialChar
+	SpecialChar -> EscChar | NestOpen | NestClose
+
+	EscChar -> "\\"
+	NestOpen -> "{"
+	NestClose -> "}"
+	briefTerm -> ";"
+	Whitespace -> Space, tab, new line, etc.
+}
+
+However, when serialising XTeD and maintaining an AST there are some extra rules to keep in mind. These are easiest to state in natural language.
+
+\list{
+	{Unclosed rule: A NormalElement or NamelessElement is unclosed if the NestClose is omitted. An unclosed element may only appear at the end of an unclosed element's body.}
+
+	{Brief termination rule: A briefElement must be terminated by briefTerm if it is followed by non-whitespace text. Otherwise the termination is preferrably omitted.}
+
+	{Text concatenation: Adjacent Text in a Body should be concatenated. It has the same meaning and is less ambiguous.}
+}
+
+
+\section{Abstract Syntax Tree}
+
+Here I'll describe the logical Abstract Syntax Tree (AST) of an XTeD document so that we have a consistent way to reason about XTeD documents. The actual implementation of the AST in a machine could be done in many different ways. XTeD documents form trees made of four different types of nodes: Document, Element, Whitespace Escape (WsEscape) and Text. The following terms will help us describe these nodes.
+
+\define{Body node: A body node is a node which may appear in a body.}
+\define{Parent node: A parent node has a body.}
+\define{Body: A sequence of Body nodes.}
+\define{closed: A body which is closed was terminated by a NestClose.}
+\define{unclosed: The opposite of closed.}
+
+\subsection{Document}
+
+The root of every XTeD document tree is a Document. A document is a parent node but not a body node. If its body is closed it may have an unparsed tail which can be any string of characters.
+
+\subsection{Element}
+
+An element is a body node and a parent node. An element has a type which is a string of zero or more character which are not "\\", "\{", "\}", ";" or whitespace. An element may be brief in which case, its body must be empty. Remembering if a brief element was terminated is optional. A brief element may be serialised using the preferred form.
+
+\subsection{Whitespace Escape}
+
+A whitespace escape is a body node but not a parent node. A whitespace escape has a whitespace string of one or more whitespace characters.
+
+\subsection{Text}
+
+A text node is a body node but not a parent node. It has a text string containing one or more arbitrary characters. Character escapes are not used in the AST, only in the serialised source text.
+
+
+\section{Differences from TeX}
+
+I think it will be useful to point out the syntax difference from TeX since it does look so similar. Here is a TL;DR list of differences to get us started:
+
+\list{
+	{TeX control sequences consume proceeding white space \tex{\TeX world} -> "TeXworld", XTeD brief elements don't \xted{\TeX world} -> "TeX world".}
+	
+	{TeX macro definitions define their own syntax, e.g. \tex{\frac{a}{b}}. XTeD elements always have the same syntax, e.g. \xted{\frac{{a}{b}}}.}
+	
+	{TeX control sequences may only contain letters. XTeD element types may contain all characters other than "\\", "\{", "\}" ";" and whitespace.}
+	
+	{TeX reserves the special characters "\\", "\{", "\}", "$", "&", "#", "^", "_", "%" and "~" from plain text. XTeD only reserves "\\", "\{" and "\}".}
+
+	{XTeD has no primitive comment syntax.}
+
+	{XTeD has no active characters such as TeX's "~".}
+
+	{TeX has primitive control sequences that are always defined. XTeD has no reserved element types.}
+
+	{TeX interprets whitespace very specifically. XTeD lets the interpretation decide how to interpret whitespace.}
+
+	{The TeX control sequence "\ " inserts literal whitespace. XTeD's whitespace escape "\ " is up for interpretation.}
+
+	{LaTeX allows for macro parameters such as \documentclass[size=A4]{}. XTeD elements don't have parameters.}
+
+	{LaTeX and TeX uses the characters "_", "^", "$", "&" and "#" to have special meaning in text and control sequences. These characters are not significant to XTeD.}
+}
+
+Many of these features that TeX has that has no parallel in XTeD could be somewhat mimiced in an XTeD interpretation. For example \int_0^1{} is an XTeD element with type "int_0^1" which would have to be interpretted. However, many of these syntax patterns might be considered for addition into XTeD proper since they make it easier to express certain concepts more concisely. See \xref{sec:future}.
+
+An understanding of TeX's general syntax can be found in \cite{knuth1984 \pages{7-9, 19-20, 37, 203, 340}}.
+
+
+\section{Differences from XML}
+
+\quote{Terseness in XML markup is of minimal importance. \cite{xml}}.
+
+While an XTeD document looks like TeX, it is structurally very similar to XML. It is so similar that the question of why use XTeD instead of XML should seriously be considered. To start, here are the differences. Some are trivial and some are fairly fundemental differences.
+
+\list{
+	{XML has verbose element delimiters. XTeD is concise.}
+
+	{Every string is a valid XTeD document. There are many ways to create an invalid XML document.}
+
+	{XML documents must have a single root element. XTeD documents don't.}
+
+	{XML has no nameless element.}
+
+	{The allowed element names in XTeD is a superset of XML element names.}
+
+	{In XTeD there is no concept of version or document declaration, comments or processing instructions, or entity references}
+
+	{XTeD doesn't have element attributes.}
+
+	{XTeD favours having only one way to serialise the logical structure. XML has a few ambiguity, but not too many.}
+}
+
+As we now see, while superficially similar to XML, XTeD does have some distinct structure which allows it to achieve its objective. Perhaps XML could be used to acheive similar goals but it is far from clear to me how this could be done. Further more, XTeD syntax may be enriched in the future, which could make XTeD either diverge or converge from XML. See \xref{sec:future}.
+
+It is very tempting to consider if XTeD could be used as an \?{XML shorthand language}. Afterall, that could be make for a pleasant XML editing experience. And the answer is yes, with the addition of parameters to XTeD, it would do an admirable job. To make it perfect, a specific dialect of XTeD might be desired. On the other hand, mapping general XTeD to XML may be tricky in some cases. For example, in cases where element type names are not valid XML element type names.
+
+Perhaps a more powerful solution would be to design XTeD interpretations as shorthands for existing XML schemes. This would allow clever uses of XTeD syntax to represent concepts in XML. While we're there, we could also abbreviate verbose XML element types and structure. For example, the XTeD nameless element could be used represent a "div" or "span" element in HTML, maybe even depending on context. For DocBook, we could represent paragraph elements with blocks of content seperated by an empty line. For MathML, the opportunities for abbreviation are tantalising.
+
+
+\section{Parsing XTeD}
+
+To make it easier to get started with XTeD, here is a simple and presumably performant way to parse it using Javascript regular expressions. The key idea is that an XTeD's source can be partitioned into a few types of tokens which then makes it trivial to construct the document's AST. I will only describe the tokenisation step here and leave the rest as an excersise.
+
+From the start of an XTeD document, we can partition the document string into plain text, character escapes, whitespace escapes, element openings and element closings. To partition the document we can write a regex which always matches one of these syntax patterns from the start of a string. From that we will record the enough information using capturing groups into a token such that we could reconstruct the sub-string. Our regex will be of the following form.
+
+\regex{(PlainText) | (CharEsc) | (WsEscape) | (ElOpen) | (ElClose)}
+
+Since we want to tokenise the entire string, in Javascript we'd use a regex global flag and the \js{String.matchAll} method. Below is a description of the parts of the regex pattern.
+
+Plain text is a non-empty string of non-special characters. We'll match it with \regex{(?<ptext>[^\\{}]+)} where \js{ptext} remembers the plain text. Character escape are escape characters followed by a special character. We'll match it with \regex{\\(?<spcchar>[\\{}])} where \js{spcchar} remembers the escaped character. Whitespace Escape is similarly an escape followed by whitespace. We'll match it with \regex{\\(?<escWS>\s+)} where \js{escWS} remembers the escaped whitespace. Nest closure is very simple. It is always just "}". So we match it with \regex{(?<nestclose>})} where \js{nestclose} remembers that we found a nest closure. Those were all simple, but the element opening is a little trickier.
+
+We will use three different patterns to match different types of element openings. We will match brief, nameless elements with \regex{\\(?<brief>;)}. We will match nameless elements with \regex{(?<nestopen>{)}. Finally we will match all other elements with \regex{\\(?<type>[^\s\\}\{;]+)(?:(?<brief>;)|(?<nestopen>{))?} where \js{type} remembers a non-empty type string and \js{brief} and \js{nestopen} remembers how the type was terminated. Note that neither \js{brief} or \js{nestopen} is matched when \js{type} is terminated by whitespace or nest closure.
+
+Putting all this together, we have get the following regular expression. Sure, it is big and difficult to visually parse, but it will easily handle the hardest part of parsing in a single line and make the rest of parsing easy. Hopefully the construction above will help make it clear what it does.
+
+\regex{(?<text>[^\\{}]+)|\\(?<spcchar>[\\{}])|\\(?<escWS>\s+)|\\(?<brief>;)|(?<nestopen>{)|\\(?<type>[^\s\\}\{;]+)(?:(?<brief>;)|(?<nestopen>{))?}
+
+
+\section{Possible future extensions and experiments}
+
+I have deliberately kept XTeD quite simple for now to make it easier for me to reason about, implement and use. Especially while I am still experimenting with it. Additionally, it seems reasonable to keep the language simple, until there is a compelling reason to extend it. So far, I can imagine a few syntax structures that might be useful additions to XTeD. These of course, would be experiments and maybe after experimentation, a better structure might reveal itself.
+
+\subsection{Element parameters}
+
+LaTeX uses the \tex{\element[parameter=value]} syntax for parameters and similarly XML has attributes. Could a similar concept in XTeD be useful? Certainly, it would make XTeD as better short hand for XML. Maybe it could also be useful in expressing certain concepts where the element type should be slightly modified in limitless ways. Alternatively, parameters values could be entire bodies, capable of containing arbitrary body content. Would this make certain expressions more concise?
+
+Parameters could also be expressed in a more concise form by reserving special characters such as "_", "^", "~" and ".". These parameters would be expressed as \xted{\element_usParam^hatParam.dotParam}. Further, I think these param values should certainly be allowed to be bodies. This would allow the expression \xted{\int_{x=0}^{\pi}{x \dx}}. Or it could express \xted{\myobject.afield;}.
+
+The brackets (), <> and [] would be possibly useful syntax characters for these parameter structures.
+
+\subsection{Active characters}
+
+The concept of active characters in TeX also presents an opportunity for concise expression within written text. Active characters could be characters such as "_", "^" and "~" which behave similar to elements. However, it seems this can already be acheived from within an interpretation. Additionally, each interpretation might wish to use different special characters.
+
+\subsection{Other considerations}
+
+I've considered some other features but found no immediate compelling reason for them yet:
+
+\list{
+	{Comments: Maybe useful in some cases? but could just be implemented using a special element type.}
+
+	{XTeD version or feature declaration: Maybe useful if different XTeD based syntaxes are useful in different contexts. Consider slightly different syntax features to implement an XML shorthand language. Could just be implemented using a special element type.}
+
+	{Document type declaration: Could just be implemented using a special element type.}
+
+	{Baked in macro expansion: Probably best left to the interpretation layer?}
+
+	{Literal strings: Removing the need to escape all "\\", "\{" and "\}" by surrounding text in backtick quotes `\ {}`. This introduces some ambiguity into the language or some complexity into the AST and the problem might be solved by using a good editor instead?}
+}
+
+
+\glossary{
+	\define{{XML shorthand language}
+		{A markup language with the same logical structure as XML but syntax which is meant to be easier to use for particular purposes. Was popular a while ago, but it doesn't seem so anymore.}
+	}
+}
+
+\references{
+	\source{\label{xml} https://www.w3.org/TR/2008/REC-xml-20081126}
+
+	\reference{@book{knuth1984,
+	  title={The texbook},
+	  author={Knuth, Donald Ervin and Bibby, Duane},
+	  volume={3},
+	  year={1984},
+	  publisher={Addison-Wesley Reading}
+	}}
+}
