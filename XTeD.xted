@@ -186,11 +186,11 @@ Since we want to tokenise the entire string, in Javascript we'd use a regex glob
 
 Plain text is a non-empty string of non-special characters. We'll match it with \regex{(?<ptext>[^\\{}]+)} where \js{ptext} remembers the plain text. Character escape are escape characters followed by a special character. We'll match it with \regex{\\(?<spcchar>[\\{}])} where \js{spcchar} remembers the escaped character. Whitespace Escape is similarly an escape followed by whitespace. We'll match it with \regex{\\(?<escWS>\s+)} where \js{escWS} remembers the escaped whitespace. Nest closure is very simple. It is always just "}". So we match it with \regex{(?<nestclose>})} where \js{nestclose} remembers that we found a nest closure. Those were all simple, but the element opening is a little trickier.
 
-We will use three different patterns to match different types of element openings. We will match brief, nameless elements with \regex{\\(?<brief>;)}. We will match nameless elements with \regex{(?<nestopen>{)}. Finally we will match all other elements with \regex{\\(?<type>[^\s\\}\{;]+)(?:(?<brief>;)|(?<nestopen>{))?} where \js{type} remembers a non-empty type string and \js{brief} and \js{nestopen} remembers how the type was terminated. Note that neither \js{brief} or \js{nestopen} is matched when \js{type} is terminated by whitespace or nest closure.
+We will use three different patterns to match different types of element openings. We will match brief, nameless elements with \regex{\\(?<namelessBrief>;)}. We will match nameless elements with \regex{(?<namelessOpen>{)}. Finally we will match all other elements with \regex{\\(?<type>[^\s\\}\{;]+)(?:(?<brief>;)|(?<nestopen>{))?} where \js{type} remembers a non-empty type string and \js{brief} and \js{nestopen} remembers how the type was terminated. Note that neither \js{brief} or \js{nestopen} is matched when \js{type} is terminated by whitespace or nest closure.
 
 Putting all this together, we have get the following regular expression. Sure, it is big and difficult to visually parse, but it will easily handle the hardest part of parsing in a single line and make the rest of parsing easy. Hopefully the construction above will help make it clear what it does.
 
-\regex{(?<text>[^\\{}]+)|\\(?<spcchar>[\\{}])|\\(?<escWS>\s+)|\\(?<brief>;)|(?<nestopen>{)|\\(?<type>[^\s\\}\{;]+)(?:(?<brief>;)|(?<nestopen>{))?}
+\regex{(?<text>[^\\{}]+)|\\(?<spcchar>[\\{}])|\\(?<escWS>\s+)|(?<nestclose>})|\\(?<namelessBrief>;)|(?<namelessOpen>{)|\\(?<type>[^\s\\}\{;]+)(?:(?<brief>;)|(?<nestopen>{}))?}
 
 
 \section{Possible future extensions and experiments}
