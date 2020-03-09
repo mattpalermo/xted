@@ -51,12 +51,12 @@ The following production rules define most of the XTeD syntax and are adequate f
 	Document -> Body [NestClose UnparsedTail]
 	Body -> (Element | WsEscape | Text)*
 
-	Element -> NormalElement | NamelessElement | briefElement | briefNamelessElement
+	Element -> NormalElement | NamelessElement | BriefElement | BriefNamelessElement
 	NormalElement -> EscChar Type NestOpen Body [NestClose]
 	NamelessElement -> NestOpen Body [NestClose]
-	briefElement -> EscChar Type [briefTerm]
-	briefNamelessElement -> EscChar briefTerm
-	Type -> (! (EscChar | NestOpen | NestClose | briefTerm | Whitespace) )+
+	BriefElement -> EscChar Type [BriefTerm]
+	BriefNamelessElement -> EscChar BriefTerm
+	Type -> (! (EscChar | NestOpen | NestClose | BriefTerm | Whitespace) )+
 
 	WsEscape -> EscChar WhiteSpace+
 
@@ -68,7 +68,7 @@ The following production rules define most of the XTeD syntax and are adequate f
 	EscChar -> "\\"
 	NestOpen -> "{"
 	NestClose -> "}"
-	briefTerm -> ";"
+	BriefTerm -> ";"
 	Whitespace -> Space, tab, new line, etc.
 }
 
@@ -184,7 +184,7 @@ From the start of an XTeD document, we can partition the document string into pl
 
 Since we want to tokenise the entire string, in Javascript we'd use a regex global flag and the \js{String.matchAll} method. Below is a description of the parts of the regex pattern.
 
-Plain text is a non-empty string of non-special characters. We'll match it with \regex{(?<ptext>[^\\{}]+)} where \js{ptext} remembers the plain text. Character escape are escape characters followed by a special character. We'll match it with \regex{\\(?<spcchar>[\\{}])} where \js{spcchar} remembers the escaped character. Whitespace Escape is similarly an escape followed by whitespace. We'll match it with \regex{\\(?<escWS>\s+)} where \js{escWS} remembers the escaped whitespace. Nest closure is very simple. It is always just "}". So we match it with \regex{(?<nestclose>})} where \js{nestclose} remembers that we found a nest closure. Those were all simple, but the element opening is a little trickier.
+Plain text is a non-empty string of non-special characters. We'll match it with \regex{(?<ptext>[^\\{}]+)} where \js{ptext} remembers the plain text. Character escape are escape characters followed by a special character. We'll match it with \regex{\\(?<spcchar>[\\{}])} where \js{spcchar} remembers the escaped character. Whitespace Escape is similarly an escape followed by whitespace. We'll match it with \regex{\\(?<escWS>\s+)} where \js{escWS} remembers the escaped whitespace. Nest closure is very simple. It is always just "\}". So we match it with \regex{(?<nestclose>\})} where \js{nestclose} remembers that we found a nest closure. Those were all simple, but the element opening is a little trickier.
 
 We will use three different patterns to match different types of element openings. We will match brief, nameless elements with \regex{\\(?<namelessBrief>;)}. We will match nameless elements with \regex{(?<namelessOpen>{)}. Finally we will match all other elements with \regex{\\(?<type>[^\s\\}\{;]+)(?:(?<brief>;)|(?<nestopen>{))?} where \js{type} remembers a non-empty type string and \js{brief} and \js{nestopen} remembers how the type was terminated. Note that neither \js{brief} or \js{nestopen} is matched when \js{type} is terminated by whitespace or nest closure.
 
